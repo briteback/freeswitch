@@ -1511,15 +1511,18 @@ void conference_loop_output(conference_member_t *member)
 				if (++low_count >= 5) {
 					/* partial frame sitting around this long is useless and builds delay */
 					conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
+					switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member->session), SWITCH_LOG_WARNING, "MFLAG_FLUSH_BUFFER set. Reason: ++low_count >= 5\n");
 				}
 			} else if (mux_used > flush_len) {
 				/* getting behind, clear the buffer */
 				conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member->session), SWITCH_LOG_WARNING, "MFLAG_FLUSH_BUFFER set. Reason: mux_used > flush_len\n");
 			}
 		}
 
 		if (switch_channel_test_app_flag(channel, CF_APP_TAGGED)) {
 			conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
+			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(member->session), SWITCH_LOG_WARNING, "MFLAG_FLUSH_BUFFER set. Reason: switch_channel_test_app_flag(channel, CF_APP_TAGGED)\n");
 		} else if (mux_used >= bytes) {
 			/* Flush the output buffer and write all the data (presumably muxed) back to the channel */
 			switch_mutex_lock(member->audio_out_mutex);
