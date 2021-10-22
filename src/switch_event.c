@@ -691,7 +691,7 @@ SWITCH_DECLARE(switch_status_t) switch_event_init(switch_memory_pool_t *pool)
 {
 
 	/* don't need any more dispatch threads than we have CPU's*/
-	MAX_DISPATCH = (switch_core_cpu_count() / 2) + 1;
+	MAX_DISPATCH = switch_core_cpu_count() + 1;
 	if (MAX_DISPATCH < 2) {
 		MAX_DISPATCH = 2;
 	}
