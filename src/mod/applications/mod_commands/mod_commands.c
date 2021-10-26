@@ -142,6 +142,12 @@ static stream_format set_format(stream_format *format, switch_stream_handle_t *s
 	return *format;
 }
 
+SWITCH_STANDARD_API(internal_dispatch_queue_size_function)
+{
+	stream->write_function(stream, "%i", switch_event_dispatch_queue_size());
+	return SWITCH_STATUS_SUCCESS;
+}
+
 #define SAY_STRING_SYNTAX "<module_name>[.<ext>] <lang>[.<ext>] <say_type> <say_method> [<say_gender>] <text>"
 SWITCH_STANDARD_API(say_string_function)
 {
@@ -7601,6 +7607,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_commands_load)
 	SWITCH_ADD_API(commands_api_interface, "xml_wrap", "Wrap another api command in xml", xml_wrap_api_function, "<command> <args>");
 	SWITCH_ADD_API(commands_api_interface, "file_exists", "Check if a file exists on server", file_exists_function, "<file>");
 	SWITCH_ADD_API(commands_api_interface, "getcputime", "Gets CPU time in milliseconds (user,kernel)", getcputime_function, GETCPUTIME_SYNTAX);
+	SWITCH_ADD_API(commands_api_interface, "dispatch_queue_size", "Get the current size of the internal dispatch queue ", internal_dispatch_queue_size_function, "");
 	SWITCH_ADD_API(commands_api_interface, "json", "JSON API", json_function, "JSON");
 
 	SWITCH_ADD_JSON_API(json_api_interface, "mediaStats", "JSON Media Stats", json_stats_function, "");
@@ -7797,6 +7804,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_commands_load)
 	switch_console_set_complete("add ...");
 	switch_console_set_complete("add file_exists");
 	switch_console_set_complete("add getcputime");
+	switch_console_set_complete("add dispatch_queue_size");
 
 	switch_msrp_load_apis_and_applications(module_interface);
 

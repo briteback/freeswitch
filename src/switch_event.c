@@ -396,6 +396,13 @@ static switch_status_t switch_event_queue_dispatch_event(switch_event_t **eventp
 	return SWITCH_STATUS_SUCCESS;
 }
 
+SWITCH_DECLARE(int) switch_event_dispatch_queue_size() {
+	if (!EVENT_DISPATCH_QUEUE) {
+		return -1;
+	}
+	return switch_queue_size(EVENT_DISPATCH_QUEUE);
+}
+
 SWITCH_DECLARE(void) switch_event_deliver(switch_event_t **event)
 {
 	switch_event_types_t e;
