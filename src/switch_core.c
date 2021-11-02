@@ -2289,10 +2289,10 @@ static void switch_load_core_config(const char *file)
 
 					tmp = atoi(val);
 
-					if (tmp > runtime.cpu_count / 2) {
-						tmp = runtime.cpu_count / 2;
+					if (tmp > runtime.cpu_count) {
+						tmp = runtime.cpu_count;
 						switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_WARNING, "This value cannot be higher than %d so setting it to that value\n",
-										  runtime.cpu_count / 2);
+										  runtime.cpu_count);
 					}
 
 					if (tmp < 1) {
