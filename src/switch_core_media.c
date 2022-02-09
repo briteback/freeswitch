@@ -3147,6 +3147,10 @@ SWITCH_DECLARE(switch_status_t) switch_core_media_read_frame(switch_core_session
 		if (switch_rtp_has_dtmf(engine->rtp_session)) {
 			switch_dtmf_t dtmf = { 0 };
 			switch_rtp_dequeue_dtmf(engine->rtp_session, &dtmf);
+			if (smh->mparams != NULL && smh->mparams->te_rate > 0 && smh->mparams->te_rate != 8000 &&
+				switch_channel_test_flag(session->channel, CF_RESAMPLE_RFC2833)) {
+				dtmf.duration = dtmf.duration * 8000 / smh->mparams->te_rate;
+			}
 			switch_channel_queue_dtmf(session->channel, &dtmf);
 		}
 
