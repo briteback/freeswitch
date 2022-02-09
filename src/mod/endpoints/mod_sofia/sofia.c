@@ -5527,6 +5527,12 @@ switch_status_t config_sofia(sofia_config_t reload, char *profile_name)
 						} else {
 							sofia_clear_pflag(profile, PFLAG_PASS_RFC2833);
 						}
+					} else if (!strcasecmp(var, "resample-rfc2833")) {
+						if (switch_true(val)) {
+							sofia_set_pflag(profile, PFLAG_RESAMPLE_RFC2833);
+						} else {
+							sofia_clear_pflag(profile, PFLAG_RESAMPLE_RFC2833);
+						}
 					} else if (!strcasecmp(var, "rtp-autofix-timing")) {
 						if (switch_true(val)) {
 							sofia_set_media_flag(profile, SCMF_AUTOFIX_TIMING);

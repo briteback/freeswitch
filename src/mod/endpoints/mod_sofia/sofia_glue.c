@@ -153,6 +153,10 @@ void sofia_glue_attach_private(switch_core_session_t *session, sofia_profile_t *
 		switch_channel_set_flag(tech_pvt->channel, CF_T38_PASSTHRU);
 	}
 
+	if (sofia_test_pflag(tech_pvt->profile, PFLAG_RESAMPLE_RFC2833)) {
+		switch_channel_set_flag(tech_pvt->channel, CF_RESAMPLE_RFC2833);
+	}
+
 	switch_channel_set_cap(tech_pvt->channel, CC_MEDIA_ACK);
 	switch_channel_set_cap(tech_pvt->channel, CC_BYPASS_MEDIA);
 	switch_channel_set_cap(tech_pvt->channel, CC_PROXY_MEDIA);

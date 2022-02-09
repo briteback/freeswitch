@@ -3572,6 +3572,10 @@ SWITCH_DECLARE(switch_status_t) switch_channel_perform_mark_pre_answered(switch_
 			switch_channel_set_flag(channel, CF_PASSTHRU_PTIME_MISMATCH);
 		}
 
+		if (switch_true(switch_channel_get_variable(channel, SWITCH_RESAMPLE_RFC2833_VARIABLE))) {
+			switch_channel_set_flag(channel, CF_RESAMPLE_RFC2833);
+		}
+
 
 		/* if we're the child of another channel and the other channel is in a blocking read they will never realize we have answered so send
 		   a SWITCH_SIG_BREAK to interrupt any blocking reads on that channel
@@ -3859,6 +3863,10 @@ SWITCH_DECLARE(switch_status_t) switch_channel_perform_mark_answered(switch_chan
 
 	if (switch_true(switch_channel_get_variable(channel, SWITCH_PASSTHRU_PTIME_MISMATCH_VARIABLE))) {
 		switch_channel_set_flag(channel, CF_PASSTHRU_PTIME_MISMATCH);
+	}
+
+	if (switch_true(switch_channel_get_variable(channel, SWITCH_RESAMPLE_RFC2833_VARIABLE))) {
+		switch_channel_set_flag(channel, CF_RESAMPLE_RFC2833);
 	}
 
 	if ((var = switch_channel_get_variable(channel, SWITCH_ENABLE_HEARTBEAT_EVENTS_VARIABLE))) {

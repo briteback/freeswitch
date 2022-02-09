@@ -1286,6 +1286,7 @@ static switch_status_t sofia_send_dtmf(switch_core_session_t *session, const swi
 	private_object_t *tech_pvt;
 	char message[128] = "";
 	switch_core_media_dtmf_t dtmf_type;
+	switch_dtmf_t new_dtmf;
 
 	tech_pvt = (private_object_t *) switch_core_session_get_private(session);
 	switch_assert(tech_pvt != NULL);
@@ -1303,7 +1304,12 @@ static switch_status_t sofia_send_dtmf(switch_core_session_t *session, const swi
 	switch (dtmf_type) {
 	case DTMF_2833:
 		{
-			return switch_core_media_queue_rfc2833(tech_pvt->session, SWITCH_MEDIA_TYPE_AUDIO, dtmf);
+			new_dtmf = *dtmf;
+			if (tech_pvt->mparams.te_rate > 0 && tech_pvt->mparams.te_rate != 8000 &&
+				switch_channel_test_flag(tech_pvt->channel, CF_RESAMPLE_RFC2833)) {
+				new_dtmf.duration = (new_dtmf.duration * tech_pvt->mparams.te_rate) / 8000;
+			}
+			return switch_core_media_queue_rfc2833(tech_pvt->session, SWITCH_MEDIA_TYPE_AUDIO, &new_dtmf);
 		}
 	case DTMF_INFO:
 		{
