@@ -8539,6 +8539,11 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 
 		if (r_sdp && sofia_test_flag(tech_pvt, TFLAG_NOSDP_REINVITE)) {
 			sofia_clear_flag_locked(tech_pvt, TFLAG_NOSDP_REINVITE);
+
+			if (switch_channel_var_true(channel, "sip_unhold_nosdp") && tech_pvt && tech_pvt->mparams.hold_laps) {
+				tech_pvt->mparams.hold_laps--;
+			}
+
 			if (switch_channel_test_flag(channel, CF_PROXY_MODE) || switch_channel_test_flag(channel, CF_PROXY_MEDIA)) {
 				if (switch_channel_test_flag(channel, CF_PROXY_MEDIA)) {
 					if (sofia_media_activate_rtp(tech_pvt) != SWITCH_STATUS_SUCCESS) {
