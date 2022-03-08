@@ -8603,6 +8603,12 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 					switch_channel_hangup(tech_pvt->channel, SWITCH_CAUSE_INCOMPATIBLE_DESTINATION);
 				}
 			}
+			if (switch_channel_var_true(channel, "sip_unhold_nosdp")) {
+				switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG,
+								"sip_unhold_nosdp: Proccess new SDP in nua_callstate_completed\n");
+				ss_state = nua_callstate_completed;
+				goto state_process;
+			}
 			goto done;
 		}
 
