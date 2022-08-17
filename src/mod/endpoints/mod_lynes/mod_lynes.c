@@ -313,6 +313,7 @@ switch_io_routines_t lynes_pickup_io_routines = {
   /*.outgoing_channel */ lynes_pickup_outgoing_channel
 };
 
+#define LYNES_PICKUP_LONG_DESC "Swap places with a waiting lynes_pickup channel"
 
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_lynes_shutdown)
 {
@@ -337,9 +338,7 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_lynes_load)
   lynes_pickup_endpoint_interface->io_routines = &lynes_pickup_io_routines;
   lynes_pickup_endpoint_interface->state_handler = &lynes_pickup_event_handlers;
 
-  switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "Hello World!\n");
-
-  SWITCH_ADD_APP(app_interface, "lynes_pickup", "Lynes_Pickup", "Lynes_Pickup a call", lynes_pickup_function, LYNES_PICKUP_SYNTAX, SAF_SUPPORT_NOMEDIA);
+  SWITCH_ADD_APP(app_interface, "lynes_pickup", "Answer a lynes_pickup", LYNES_PICKUP_LONG_DESC, lynes_pickup_function, LYNES_PICKUP_SYNTAX, SAF_SUPPORT_NOMEDIA);
 
   return SWITCH_STATUS_SUCCESS;
 }
