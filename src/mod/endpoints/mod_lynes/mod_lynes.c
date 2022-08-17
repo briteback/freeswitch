@@ -326,6 +326,10 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_lynes_load)
 {
   switch_application_interface_t *app_interface;
 
+  globals.pool = pool;
+  switch_core_hash_init(&globals.lynes_pickup_hash);
+  switch_mutex_init(&globals.lynes_pickup_mutex, SWITCH_MUTEX_NESTED, globals.pool);
+
   *module_interface = switch_loadable_module_create_module_interface(pool, modname);
 
   lynes_pickup_endpoint_interface = (switch_endpoint_interface_t *) switch_loadable_module_create_interface(*module_interface, SWITCH_ENDPOINT_INTERFACE);
