@@ -122,18 +122,17 @@ static switch_status_t lynes_pickup_event_handler(switch_core_session_t *session
   char *uuid = NULL;
 
   switch(state) {
-  case CS_DESTROY:
-    if (tech_pvt->vars) {
-      switch_event_destroy(&tech_pvt->vars);
-    }
-    break;
-  case CS_REPORTING:
-    if (switch_channel_get_cause(channel) == SWITCH_CAUSE_PICKED_OFF) {
-      return SWITCH_STATUS_FALSE;
-    }
-    break;
-  case CS_HANGUP:
-    {
+    case CS_DESTROY:
+      if (tech_pvt->vars) {
+        switch_event_destroy(&tech_pvt->vars);
+      }
+      break;
+    case CS_REPORTING:
+      if (!zstr(switch_channel_get_variable(channel, "channel_swap_uuid"))) {
+        return SWITCH_STATUS_FALSE;
+      }
+      break;
+    case CS_HANGUP: {
       if (switch_channel_test_flag(channel, CF_CHANNEL_SWAP)) {
         const char *key = switch_channel_get_variable(channel, "channel_swap_uuid");
         switch_core_session_t *swap_session;
@@ -148,10 +147,10 @@ static switch_status_t lynes_pickup_event_handler(switch_core_session_t *session
 
       uuid = lynes_pickup_pop_uuid(tech_pvt->key, switch_core_session_get_uuid(session));
       switch_safe_free(uuid);
+      break;
     }
-    break;
-  default:
-    break;
+    default:
+      break;
   }
 
 
