@@ -79,7 +79,7 @@ static struct {
 	switch_mutex_t *lamutex;
 } event_channel_manager;
 
-#define MAX_DISPATCH_VAL 64
+#define MAX_DISPATCH_VAL 128
 static unsigned int MAX_DISPATCH = MAX_DISPATCH_VAL;
 static unsigned int SOFT_MAX_DISPATCH = 0;
 static char guess_ip_v4[80] = "";
