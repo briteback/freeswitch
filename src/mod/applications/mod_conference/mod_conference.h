@@ -1197,6 +1197,7 @@ switch_status_t conference_api_sub_video_filter(conference_member_t *member, swi
 switch_status_t conference_api_sub_floor(conference_member_t *member, switch_stream_handle_t *stream, void *data);
 switch_status_t conference_api_sub_vid_floor(conference_member_t *member, switch_stream_handle_t *stream, void *data);
 switch_status_t conference_api_sub_clear_vid_floor(conference_obj_t *conference, switch_stream_handle_t *stream, void *data);
+switch_status_t conference_api_sub_clear_mintwo(conference_obj_t *conference, switch_stream_handle_t *stream, void *data);
 switch_status_t conference_api_sub_position(conference_member_t *member, switch_stream_handle_t *stream, void *data);
 switch_status_t conference_api_sub_conference_video_vmute_snap(conference_member_t *member, switch_stream_handle_t *stream, void *data);
 switch_status_t conference_api_sub_dtmf(conference_member_t *member, switch_stream_handle_t *stream, void *data);

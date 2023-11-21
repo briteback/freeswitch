@@ -119,6 +119,7 @@ api_command_t conference_api_sub_commands[] = {
 	{"vid-role-id", (void_fn_t) & conference_api_sub_vid_role_id, CONF_API_SUB_MEMBER_TARGET, "vid-role-id", "<member_id|last> <val>|clear"},
 	{"get-uuid", (void_fn_t) & conference_api_sub_get_uuid, CONF_API_SUB_MEMBER_TARGET, "get-uuid", "<member_id|last>"},
 	{"clear-vid-floor", (void_fn_t) & conference_api_sub_clear_vid_floor, CONF_API_SUB_ARGS_AS_ONE, "clear-vid-floor", ""},
+	{"clear-mintwo", (void_fn_t) & conference_api_sub_clear_mintwo, CONF_API_SUB_ARGS_AS_ONE, "clear-mintwo", ""},
 	{"vid-layout", (void_fn_t) & conference_api_sub_vid_layout, CONF_API_SUB_ARGS_SPLIT, "vid-layout", "<layout name>|group <group name> [<canvas id>]"},
 	{"vid-write-png", (void_fn_t) & conference_api_sub_write_png, CONF_API_SUB_ARGS_SPLIT, "vid-write-png", "<path>"},
 	{"vid-fps", (void_fn_t) & conference_api_sub_vid_fps, CONF_API_SUB_ARGS_SPLIT, "vid-fps", "<fps>"},
@@ -2361,6 +2362,17 @@ switch_status_t conference_api_sub_clear_vid_floor(conference_obj_t *conference,
 	switch_mutex_unlock(conference->mutex);
 
 	stream->write_function(stream, "+OK floor Cleared\n", SWITCH_VA_NONE);
+
+	return SWITCH_STATUS_SUCCESS;
+}
+
+switch_status_t conference_api_sub_clear_mintwo(conference_obj_t *conference, switch_stream_handle_t *stream, void *data)
+{
+	switch_mutex_lock(conference->mutex);
+	conference->min = 1;
+	switch_mutex_unlock(conference->mutex);
+
+	stream->write_function(stream, "+OK minimum member count set to 1\n", SWITCH_VA_NONE);
 
 	return SWITCH_STATUS_SUCCESS;
 }
