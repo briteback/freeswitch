@@ -653,7 +653,7 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_get_payload_code(switch_core
 		if (!fmtp_in) fmtp_in = "";
 
 
-		if (!strcasecmp(pmap->iananame, iananame) && !strcasecmp(fmtp_a, fmtp_in) && (!rate || (rate == pmap->rate))) {
+		if (!strcasecmp(pmap->iananame, iananame) && /* !strcasecmp(fmtp_a, fmtp_in) && */ (!rate || (rate == pmap->rate))) {
 			pt = pmap->pt;
 			recv_pt = pmap->recv_pt;
 			fmtp = pmap->rm_fmtp;
