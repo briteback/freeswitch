@@ -434,26 +434,30 @@ static void inherit_codec(switch_channel_t *caller_channel, switch_core_session_
 	if (!zstr(var) && !strcasecmp(var, "passthru")) {
 		switch_channel_set_variable(caller_channel, "absolute_codec_string", switch_channel_get_variable(channel, "ep_codec_string"));
 	} else if (switch_true(var)) {
-		switch_codec_implementation_t impl = { 0 };
+		switch_codec_t *codec = NULL;
 		switch_codec_implementation_t video_impl = { 0 };
 		char tmp[128] = "";
 
-		if (switch_core_session_get_read_impl(session, &impl) == SWITCH_STATUS_SUCCESS) {
+		if ((codec = switch_core_session_get_read_codec(session)) != NULL) {
 			const char *ep = switch_channel_get_variable(caller_channel, "ep_codec_string");
 
 			if (switch_core_session_get_video_read_impl(session, &video_impl) == SWITCH_STATUS_SUCCESS) {
 				switch_snprintf(tmp, sizeof(tmp), "%s@%uh@%ui,%s",
-								impl.iananame, impl.samples_per_second, (uint32_t)impl.microseconds_per_packet / 1000,
-								video_impl.iananame);
+								codec->implementation->iananame, codec->implementation->samples_per_second,
+								(uint32_t)codec->implementation->microseconds_per_packet / 1000, video_impl.iananame);
 			} else {
 				switch_snprintf(tmp, sizeof(tmp), "%s@%uh@%ui",
-								impl.iananame, impl.samples_per_second, (uint32_t)impl.microseconds_per_packet / 1000);
+								codec->implementation->iananame, codec->implementation->samples_per_second,
+								(uint32_t)codec->implementation->microseconds_per_packet / 1000);
 			}
 
-			if (ep && switch_stristr(impl.iananame, ep)) {
+			if (ep && switch_stristr(codec->implementation->iananame, ep)) {
 				switch_channel_set_variable(caller_channel, "absolute_codec_string", tmp);
 				switch_log_printf(SWITCH_CHANNEL_CHANNEL_LOG(caller_channel), SWITCH_LOG_DEBUG, "Setting codec string on %s to %s\n",
 								  switch_channel_get_name(caller_channel), tmp);
+				if (!strcasecmp(codec->implementation->iananame, "AMR") || !strcasecmp(codec->implementation->iananame, "AMR-WB")) {
+					switch_channel_set_variable(caller_channel, "rtp_force_audio_fmtp", codec->fmtp_in);
+				}
 			} else {
 				switch_log_printf(SWITCH_CHANNEL_CHANNEL_LOG(caller_channel), SWITCH_LOG_DEBUG, "Codec string %s not supported on %s, skipping inheritance\n",
 								  tmp, switch_channel_get_name(caller_channel));
