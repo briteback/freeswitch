@@ -359,24 +359,24 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_read_frame(switch_core_sessi
 	}
 
 	if (switch_test_flag(*frame, SFF_CNG)) {
-		if (!session->bugs && !session->plc) {
-			/* Check if other session has bugs */
-			unsigned int other_session_bugs = 0;
-			switch_core_session_t *other_session = NULL;
-			if (switch_channel_test_flag(switch_core_session_get_channel(session), CF_BRIDGED) &&
-				switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
-				if (other_session->bugs && !switch_test_flag(other_session, SSF_MEDIA_BUG_TAP_ONLY)) {
-					other_session_bugs = 1;
-				}
-				switch_core_session_rwunlock(other_session);
-			}
+		// if (!session->bugs && !session->plc) {
+		// 	/* Check if other session has bugs */
+		// 	unsigned int other_session_bugs = 0;
+		// 	switch_core_session_t *other_session = NULL;
+		// 	if (switch_channel_test_flag(switch_core_session_get_channel(session), CF_BRIDGED) &&
+		// 		switch_core_session_get_partner(session, &other_session) == SWITCH_STATUS_SUCCESS) {
+		// 		if (other_session->bugs && !switch_test_flag(other_session, SSF_MEDIA_BUG_TAP_ONLY)) {
+		// 			other_session_bugs = 1;
+		// 		}
+		// 		switch_core_session_rwunlock(other_session);
+		// 	}
 
-			/* Don't process CNG frame */
-			if (!other_session_bugs) {
-				status = SWITCH_STATUS_SUCCESS;
-				goto done;
-			}
-		}
+		// 	/* Don't process CNG frame */
+		// 	if (!other_session_bugs) {
+		// 		status = SWITCH_STATUS_SUCCESS;
+		// 		goto done;
+		// 	}
+		// }
 		is_cng = 1;
 		need_codec = 1;
 	} else if (switch_test_flag(*frame, SFF_NOT_AUDIO)) {
