@@ -385,29 +385,29 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_read_frame(switch_core_sessi
 		need_codec = 0;
 	}
 
-	if (switch_test_flag(session, SSF_READ_TRANSCODE) && !need_codec && switch_core_codec_ready(session->read_codec)) {
-		switch_core_session_t *other_session;
-		const char *uuid = switch_channel_get_partner_uuid(switch_core_session_get_channel(session));
-		switch_clear_flag(session, SSF_READ_TRANSCODE);
+	// if (switch_test_flag(session, SSF_READ_TRANSCODE) && !need_codec && switch_core_codec_ready(session->read_codec)) {
+	// 	switch_core_session_t *other_session;
+	// 	const char *uuid = switch_channel_get_partner_uuid(switch_core_session_get_channel(session));
+	// 	switch_clear_flag(session, SSF_READ_TRANSCODE);
 
-		if (uuid && (other_session = switch_core_session_locate(uuid))) {
-			switch_set_flag(other_session, SSF_READ_CODEC_RESET);
-			switch_set_flag(other_session, SSF_READ_CODEC_RESET);
-			switch_set_flag(other_session, SSF_WRITE_CODEC_RESET);
-			switch_core_session_rwunlock(other_session);
-		}
-	}
+	// 	if (uuid && (other_session = switch_core_session_locate(uuid))) {
+	// 		switch_set_flag(other_session, SSF_READ_CODEC_RESET);
+	// 		switch_set_flag(other_session, SSF_READ_CODEC_RESET);
+	// 		switch_set_flag(other_session, SSF_WRITE_CODEC_RESET);
+	// 		switch_core_session_rwunlock(other_session);
+	// 	}
+	// }
 
-	if (switch_test_flag(session, SSF_READ_CODEC_RESET)) {
-		switch_core_codec_reset(session->read_codec);
-		switch_clear_flag(session, SSF_READ_CODEC_RESET);
-	}
+	// if (switch_test_flag(session, SSF_READ_CODEC_RESET)) {
+	// 	switch_core_codec_reset(session->read_codec);
+	// 	switch_clear_flag(session, SSF_READ_CODEC_RESET);
+	// }
 
 
 	if (status == SWITCH_STATUS_SUCCESS && need_codec) {
 		switch_frame_t *enc_frame, *read_frame = *frame;
 
-		switch_set_flag(session, SSF_READ_TRANSCODE);
+		// switch_set_flag(session, SSF_READ_TRANSCODE);
 
 		if (!switch_test_flag(session, SSF_WARN_TRANSCODE)) {
 			switch_core_session_message_t msg = { 0 };
