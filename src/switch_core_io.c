@@ -755,9 +755,9 @@ SWITCH_DECLARE(switch_status_t) switch_core_session_read_frame(switch_core_sessi
 			}
 		}
 
-		if (do_bugs) {
-			goto done;
-		}
+		// if (do_bugs) {
+		// 	goto done;
+		// }
 
 		if (session->read_codec) {
 			if (session->read_resampler) {
