@@ -8619,7 +8619,7 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 		if (channel) {
 			if (sofia_test_flag(tech_pvt, TFLAG_EARLY_MEDIA) && !sofia_test_flag(tech_pvt, TFLAG_ANS)) {
 				sofia_set_flag_locked(tech_pvt, TFLAG_ANS);
-				sofia_set_flag(tech_pvt, TFLAG_SDP);
+				// sofia_set_flag(tech_pvt, TFLAG_SDP);
 				switch_channel_mark_answered(channel);
 
 				if (switch_channel_test_flag(channel, CF_PROXY_MODE) || switch_channel_test_flag(channel, CF_PROXY_MEDIA)) {
@@ -8630,14 +8630,14 @@ static void sofia_handle_sip_i_state(switch_core_session_t *session, int status,
 						switch_core_session_rwunlock(other_session);
 					}
 				}
-				goto done;
+				// goto done;
 			}
 
-			if (!r_sdp && !sofia_test_flag(tech_pvt, TFLAG_SDP)) {
+			if (!r_sdp) {
 				r_sdp = (const char *) switch_channel_get_variable(channel, SWITCH_R_SDP_VARIABLE);
 			}
 
-			if (r_sdp && !sofia_test_flag(tech_pvt, TFLAG_SDP)) {
+			if (r_sdp) {
 				if (switch_channel_test_flag(channel, CF_PROXY_MODE) || switch_channel_test_flag(channel, CF_PROXY_MEDIA)) {
 					sofia_set_flag_locked(tech_pvt, TFLAG_ANS);
 					sofia_set_flag_locked(tech_pvt, TFLAG_SDP);
