@@ -1460,6 +1460,9 @@ void conference_loop_output(conference_member_t *member)
 		switch_buffer_t *use_buffer = NULL;
 		uint32_t mux_used = 0;
 
+		if (switch_channel_test_flag(channel, CF_LEG_HOLDING)) {
+			goto next;
+		}
 
 		//if (member->reset_media || switch_channel_test_flag(member->channel, CF_CONFERENCE_RESET_MEDIA)) {
 		//	switch_cond_next();
@@ -1648,6 +1651,8 @@ void conference_loop_output(conference_member_t *member)
 		} else {
 			switch_ivr_parse_all_messages(member->session);
 		}
+
+		next:
 
 		switch_core_timer_next(&timer);
 
