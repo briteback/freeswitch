@@ -1460,7 +1460,6 @@ void conference_loop_output(conference_member_t *member)
 		switch_buffer_t *use_buffer = NULL;
 		uint32_t mux_used = 0;
 
-
 		//if (member->reset_media || switch_channel_test_flag(member->channel, CF_CONFERENCE_RESET_MEDIA)) {
 		//	switch_cond_next();
 		//	continue;
@@ -1512,131 +1511,133 @@ void conference_loop_output(conference_member_t *member)
 			}
 		}
 
-		use_buffer = NULL;
-		mux_used = (uint32_t) switch_buffer_inuse(member->mux_buffer);
+		if (!switch_channel_test_flag(channel, CF_LEG_HOLDING)) {
+			use_buffer = NULL;
+			mux_used = (uint32_t) switch_buffer_inuse(member->mux_buffer);
 
-		if (mux_used) {
-			if (mux_used < bytes) {
-				if (++low_count >= 5) {
-					/* partial frame sitting around this long is useless and builds delay */
+			if (mux_used) {
+				if (mux_used < bytes) {
+					if (++low_count >= 5) {
+						/* partial frame sitting around this long is useless and builds delay */
+						conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
+					}
+				} else if (mux_used > flush_len) {
+					/* getting behind, clear the buffer */
 					conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
 				}
-			} else if (mux_used > flush_len) {
-				/* getting behind, clear the buffer */
+			}
+
+			if (switch_channel_test_app_flag(channel, CF_APP_TAGGED)) {
 				conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
-			}
-		}
-
-		if (switch_channel_test_app_flag(channel, CF_APP_TAGGED)) {
-			conference_utils_member_set_flag_locked(member, MFLAG_FLUSH_BUFFER);
-		} else if (mux_used >= bytes) {
-			/* Flush the output buffer and write all the data (presumably muxed) back to the channel */
-			switch_mutex_lock(member->audio_out_mutex);
-			write_frame.data = data;
-			use_buffer = member->mux_buffer;
-			low_count = 0;
-
-			if ((write_frame.datalen = (uint32_t) switch_buffer_read(use_buffer, write_frame.data, bytes))) {
-				write_frame.samples = write_frame.datalen / 2 / member->conference->channels;
-
-				if( !conference_utils_member_test_flag(member, MFLAG_CAN_HEAR)) {
-					memset(write_frame.data, 255, write_frame.datalen);
-				} else if (member->volume_out_level) { /* Check for output volume adjustments */
-					switch_change_sln_volume(write_frame.data, write_frame.samples * member->conference->channels, member->volume_out_level);
-				}
-
-				//write_frame.timestamp = timer.samplecount;
-
-				if (member->fnode) {
-					conference_member_add_file_data(member, write_frame.data, write_frame.datalen);
-				}
-
-				conference_member_check_channels(&write_frame, member, SWITCH_FALSE);
-
-				if (switch_core_session_write_frame(member->session, &write_frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
-					switch_mutex_unlock(member->audio_out_mutex);
-					switch_mutex_unlock(member->write_mutex);
-					break;
-				}
-			}
-
-			switch_mutex_unlock(member->audio_out_mutex);
-		}
-
-		if (conference_utils_member_test_flag(member, MFLAG_FLUSH_BUFFER)) {
-			if (switch_buffer_inuse(member->mux_buffer)) {
+			} else if (mux_used >= bytes) {
+				/* Flush the output buffer and write all the data (presumably muxed) back to the channel */
 				switch_mutex_lock(member->audio_out_mutex);
-				switch_buffer_zero(member->mux_buffer);
+				write_frame.data = data;
+				use_buffer = member->mux_buffer;
+				low_count = 0;
+
+				if ((write_frame.datalen = (uint32_t) switch_buffer_read(use_buffer, write_frame.data, bytes))) {
+					write_frame.samples = write_frame.datalen / 2 / member->conference->channels;
+
+					if( !conference_utils_member_test_flag(member, MFLAG_CAN_HEAR)) {
+						memset(write_frame.data, 255, write_frame.datalen);
+					} else if (member->volume_out_level) { /* Check for output volume adjustments */
+						switch_change_sln_volume(write_frame.data, write_frame.samples * member->conference->channels, member->volume_out_level);
+					}
+
+					//write_frame.timestamp = timer.samplecount;
+
+					if (member->fnode) {
+						conference_member_add_file_data(member, write_frame.data, write_frame.datalen);
+					}
+
+					conference_member_check_channels(&write_frame, member, SWITCH_FALSE);
+
+					if (switch_core_session_write_frame(member->session, &write_frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
+						switch_mutex_unlock(member->audio_out_mutex);
+						switch_mutex_unlock(member->write_mutex);
+						break;
+					}
+				}
+
 				switch_mutex_unlock(member->audio_out_mutex);
 			}
-			conference_utils_member_clear_flag_locked(member, MFLAG_FLUSH_BUFFER);
-		}
 
-		switch_mutex_unlock(member->write_mutex);
-
-
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_MUTE)) {
-			if (!zstr(member->conference->muted_sound)) {
-				conference_member_play_file(member, member->conference->muted_sound, 0, SWITCH_TRUE);
-			} else {
-				char msg[512];
-
-				switch_snprintf(msg, sizeof(msg), "Muted");
-				conference_member_say(member, msg, 0);
+			if (conference_utils_member_test_flag(member, MFLAG_FLUSH_BUFFER)) {
+				if (switch_buffer_inuse(member->mux_buffer)) {
+					switch_mutex_lock(member->audio_out_mutex);
+					switch_buffer_zero(member->mux_buffer);
+					switch_mutex_unlock(member->audio_out_mutex);
+				}
+				conference_utils_member_clear_flag_locked(member, MFLAG_FLUSH_BUFFER);
 			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_MUTE);
-		}
 
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_MUTE_DETECT)) {
-			if (!zstr(member->conference->mute_detect_sound)) {
-				conference_member_play_file(member, member->conference->mute_detect_sound, 0, SWITCH_TRUE);
-			} else {
-				char msg[512];
+			switch_mutex_unlock(member->write_mutex);
 
-				switch_snprintf(msg, sizeof(msg), "Currently Muted");
-				conference_member_say(member, msg, 0);
+
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_MUTE)) {
+				if (!zstr(member->conference->muted_sound)) {
+					conference_member_play_file(member, member->conference->muted_sound, 0, SWITCH_TRUE);
+				} else {
+					char msg[512];
+
+					switch_snprintf(msg, sizeof(msg), "Muted");
+					conference_member_say(member, msg, 0);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_MUTE);
 			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_MUTE_DETECT);
-		}
 
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_UNMUTE)) {
-			if (!zstr(member->conference->unmuted_sound)) {
-				conference_member_play_file(member, member->conference->unmuted_sound, 0, SWITCH_TRUE);
-			} else {
-				char msg[512];
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_MUTE_DETECT)) {
+				if (!zstr(member->conference->mute_detect_sound)) {
+					conference_member_play_file(member, member->conference->mute_detect_sound, 0, SWITCH_TRUE);
+				} else {
+					char msg[512];
 
-				switch_snprintf(msg, sizeof(msg), "Un-Muted");
-				conference_member_say(member, msg, 0);
+					switch_snprintf(msg, sizeof(msg), "Currently Muted");
+					conference_member_say(member, msg, 0);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_MUTE_DETECT);
 			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_UNMUTE);
-		}
 
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_DEAF)) {
-			if (!zstr(member->conference->deaf_sound)) {
-				conference_member_play_file(member, member->conference->deaf_sound, 0, SWITCH_TRUE);
-			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_DEAF);
-		}
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_UNMUTE)) {
+				if (!zstr(member->conference->unmuted_sound)) {
+					conference_member_play_file(member, member->conference->unmuted_sound, 0, SWITCH_TRUE);
+				} else {
+					char msg[512];
 
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_UNDEAF)) {
-			if (!zstr(member->conference->undeaf_sound)) {
-				conference_member_play_file(member, member->conference->undeaf_sound, 0, SWITCH_TRUE);
+					switch_snprintf(msg, sizeof(msg), "Un-Muted");
+					conference_member_say(member, msg, 0);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_UNMUTE);
 			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_UNDEAF);
-		}
 
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_BLIND)) {
-			if (!zstr(member->conference->deaf_sound)) {
-				conference_member_play_file(member, member->conference->deaf_sound, 0, SWITCH_TRUE);
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_DEAF)) {
+				if (!zstr(member->conference->deaf_sound)) {
+					conference_member_play_file(member, member->conference->deaf_sound, 0, SWITCH_TRUE);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_DEAF);
 			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_BLIND);
-		}
 
-		if (conference_utils_member_test_flag(member, MFLAG_INDICATE_UNBLIND)) {
-			if (!zstr(member->conference->undeaf_sound)) {
-				conference_member_play_file(member, member->conference->undeaf_sound, 0, SWITCH_TRUE);
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_UNDEAF)) {
+				if (!zstr(member->conference->undeaf_sound)) {
+					conference_member_play_file(member, member->conference->undeaf_sound, 0, SWITCH_TRUE);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_UNDEAF);
 			}
-			conference_utils_member_clear_flag(member, MFLAG_INDICATE_UNBLIND);
+
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_BLIND)) {
+				if (!zstr(member->conference->deaf_sound)) {
+					conference_member_play_file(member, member->conference->deaf_sound, 0, SWITCH_TRUE);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_BLIND);
+			}
+
+			if (conference_utils_member_test_flag(member, MFLAG_INDICATE_UNBLIND)) {
+				if (!zstr(member->conference->undeaf_sound)) {
+					conference_member_play_file(member, member->conference->undeaf_sound, 0, SWITCH_TRUE);
+				}
+				conference_utils_member_clear_flag(member, MFLAG_INDICATE_UNBLIND);
+			}
 		}
 
 		if (switch_core_session_private_event_count(member->session)) {
