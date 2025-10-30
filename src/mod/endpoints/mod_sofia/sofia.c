@@ -10879,27 +10879,20 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 	if ((rpid = sip_remote_party_id(sip))) {
 		if (rpid->rpid_url->url_user) {
 			char *full_rpid_header = sip_header_as_string(nua_handle_get_home(nh), (void *) rpid);
-			from_user = rpid->rpid_url->url_user;
 			if (!zstr(full_rpid_header)) {
 				switch_channel_set_variable(channel, "sip_Remote-Party-ID", full_rpid_header);
 			}
 
 		}
-		if (!zstr(rpid->rpid_display)) {
-			displayname = rpid->rpid_display;
-		}
-		switch_channel_set_variable(channel, "sip_cid_type", "rpid");
-		tech_pvt->cid_type = CID_TYPE_RPID;
 	}
 
 	if ((passerted = sip_p_asserted_identity(sip))) {
 		if (passerted->paid_url->url_user) {
 			char *full_paid_header = sip_header_as_string(nua_handle_get_home(nh), (void *) passerted);
 			//char *full_paid_header = (char *)(passerted->paid_common->h_data);
-			from_user = passerted->paid_url->url_user;
 			if (!zstr(full_paid_header)) {
 				if (profile->paid_type == PAID_DEFAULT || profile->paid_type == PAID_USER) {
-					switch_channel_set_variable(channel, "sip_P-Asserted-Identity", from_user);
+					switch_channel_set_variable(channel, "sip_P-Asserted-Identity", passerted->paid_url->url_user);
 				} else if (profile->paid_type == PAID_USER_DOMAIN) {
 					switch_channel_set_variable(channel, "sip_P-Asserted-Identity",
 								switch_core_session_sprintf(session, "%s@%s", passerted->paid_url->url_user, passerted->paid_url->url_host));
@@ -10908,27 +10901,16 @@ void sofia_handle_sip_i_invite(switch_core_session_t *session, nua_t *nua, sofia
 				}
 			}
 		}
-		if (!zstr(passerted->paid_display)) {
-			displayname = passerted->paid_display;
-		}
-		switch_channel_set_variable(channel, "sip_cid_type", "pid");
-		tech_pvt->cid_type = CID_TYPE_PID;
 	}
 
 	if ((ppreferred = sip_p_preferred_identity(sip))) {
 		if (ppreferred->ppid_url->url_user) {
 			char *full_ppid_header = sip_header_as_string(nua_handle_get_home(nh), (void *) ppreferred);
-			from_user = ppreferred->ppid_url->url_user;
 			if (!zstr(full_ppid_header)) {
 				switch_channel_set_variable(channel, "sip_P-Preferred-Identity", full_ppid_header);
 			}
 
 		}
-		if (!zstr(ppreferred->ppid_display)) {
-			displayname = ppreferred->ppid_display;
-		}
-		switch_channel_set_variable(channel, "sip_cid_type", "pid");
-		tech_pvt->cid_type = CID_TYPE_PID;
 	}
 
 	if (from_user) {
