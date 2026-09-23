@@ -59,7 +59,8 @@ typedef enum {
 	TFLAG_APP = (1 << 7),
 	TFLAG_RUNNING_APP = (1 << 8),
 	TFLAG_BOWOUT_USED = (1 << 9),
-	TFLAG_CLEAR = (1 << 10)
+	TFLAG_CLEAR = (1 << 10),
+	TFLAG_BOWOUT_ARMED = (1 << 11)
 } TFLAGS;
 
 struct loopback_private_object {
@@ -86,12 +87,16 @@ struct loopback_private_object {
 	switch_caller_profile_t *caller_profile;
 	int32_t bowout_frame_count;
 	char *other_uuid;
+	switch_caller_extension_t *bowout_extension;
+	char *pending_bowout_uuid;
 	switch_queue_t *frame_queue;
 	int64_t packet_count;
 	int first_cng;
 };
 
 typedef struct loopback_private_object loopback_private_t;
+
+static void perform_bowout(loopback_private_t *tech_pvt, switch_core_session_t *other_session);
 
 static struct {
 	int debug;
@@ -437,6 +442,105 @@ static switch_status_t channel_on_routing(switch_core_session_t *session)
 	return SWITCH_STATUS_SUCCESS;
 }
 
+static switch_caller_extension_t *clone_pending_applications(switch_core_session_t *dest_session,
+															  switch_caller_extension_t *src_extension,
+															  switch_caller_application_t *start_ap)
+{
+	switch_caller_extension_t *extension;
+	switch_caller_application_t *ap;
+
+	if (!src_extension || !(extension = switch_caller_extension_new(dest_session, src_extension->extension_name, src_extension->extension_number))) {
+		return NULL;
+	}
+
+	for (ap = start_ap; ap; ap = ap->next) {
+		switch_caller_extension_add_application(dest_session, extension, ap->application_name, ap->application_data);
+	}
+
+	return extension;
+}
+
+static void perform_bowout(loopback_private_t *bow_tech_pvt, switch_core_session_t *other_session)
+{
+	switch_channel_t *channel = bow_tech_pvt->channel;
+	switch_channel_t *other_channel = switch_core_session_get_channel(other_session);
+	switch_caller_profile_t *cp, *clone;
+	switch_event_t *event = NULL;
+
+	switch_set_flag(bow_tech_pvt, TFLAG_BOWOUT);
+
+	switch_channel_wait_for_state_timeout(other_channel, CS_EXCHANGE_MEDIA, 5000);
+
+	switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(bow_tech_pvt->session), SWITCH_LOG_INFO, "BOWOUT Replacing loopback channel with real channel: %s\n",
+					  switch_channel_get_name(other_channel));
+
+	if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, "loopback::bowout") == SWITCH_STATUS_SUCCESS) {
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Resigning-UUID", switch_channel_get_uuid(channel));
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Resigning-Peer-UUID", switch_channel_get_uuid(bow_tech_pvt->other_channel));
+		switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Acquired-UUID", switch_channel_get_uuid(other_channel));
+		switch_event_fire(&event);
+	}
+
+	if ((cp = switch_channel_get_caller_profile(channel))) {
+		clone = switch_caller_profile_clone(other_session, cp);
+		clone->originator_caller_profile = NULL;
+		clone->originatee_caller_profile = NULL;
+		switch_channel_set_caller_profile(other_channel, clone);
+	}
+
+	switch_channel_set_variable(channel, "loopback_hangup_cause", "bowout");
+	switch_channel_set_variable(channel, "loopback_bowout_other_uuid", switch_channel_get_uuid(other_channel));
+
+	switch_channel_caller_extension_masquerade(channel, other_channel, 0);
+
+	if (bow_tech_pvt->bowout_extension) {
+		switch_caller_extension_t *extension = clone_pending_applications(other_session, bow_tech_pvt->bowout_extension,
+																		   bow_tech_pvt->bowout_extension->applications);
+
+		if (extension) {
+			switch_channel_set_caller_extension(other_channel, extension);
+		}
+	}
+
+	switch_channel_set_state(other_channel, CS_RESET);
+	switch_channel_wait_for_state(other_channel, NULL, CS_RESET);
+	switch_channel_set_state(other_channel, CS_EXECUTE);
+	switch_channel_hangup(channel, loopback_globals.bowout_hangup_cause);
+}
+
+struct bowout_thread_data {
+	loopback_private_t *bow_tech_pvt;
+	switch_core_session_t *other_session;
+};
+
+static void *SWITCH_THREAD_FUNC bowout_thread_run(switch_thread_t *thread, void *obj)
+{
+	struct bowout_thread_data *bt = (struct bowout_thread_data *) obj;
+
+	if (switch_channel_up(bt->bow_tech_pvt->channel)) {
+		perform_bowout(bt->bow_tech_pvt, bt->other_session);
+	}
+
+	switch_core_session_rwunlock(bt->other_session);
+
+	return NULL;
+}
+
+static void launch_bowout(loopback_private_t *bow_tech_pvt, switch_core_session_t *other_session)
+{
+	switch_thread_t *thread;
+	switch_threadattr_t *thd_attr = NULL;
+	switch_memory_pool_t *pool = switch_core_session_get_pool(other_session);
+	struct bowout_thread_data *bt = switch_core_alloc(pool, sizeof(*bt));
+
+	bt->bow_tech_pvt = bow_tech_pvt;
+	bt->other_session = other_session;
+
+	switch_threadattr_create(&thd_attr, pool);
+	switch_threadattr_detach_set(thd_attr, 1);
+	switch_thread_create(&thread, thd_attr, bowout_thread_run, bt, pool);
+}
+
 static switch_status_t channel_on_execute(switch_core_session_t *session)
 {
 	switch_channel_t *channel = NULL;
@@ -456,7 +560,13 @@ static switch_status_t channel_on_execute(switch_core_session_t *session)
 	if ((bowout = switch_channel_get_variable(tech_pvt->channel, "loopback_bowout_on_execute")) && switch_true(bowout)) {
 		/* loopback_bowout_on_execute variable is set */
 		bow = 1;
-	} else if ((exten = switch_channel_get_caller_extension(channel))) {
+	}
+
+	if (!exten) {
+		exten = switch_channel_get_caller_extension(channel);
+	}
+
+	if (!bow && exten) {
 		/* check for bowout flag */
 		switch_caller_application_t *app_p;
 
@@ -472,44 +582,33 @@ static switch_status_t channel_on_execute(switch_core_session_t *session)
 		}
 	}
 
+	if (bow && exten && !tech_pvt->bowout_extension) {
+		tech_pvt->bowout_extension = clone_pending_applications(session, exten, exten->current_application);
+	}
+
 	if (bow) {
 		switch_core_session_t *other_session = NULL;
-		switch_caller_profile_t *cp, *clone;
 		const char *other_uuid = NULL;
-		switch_event_t *event = NULL;
-
-		switch_set_flag(tech_pvt, TFLAG_BOWOUT);
 
 		if ((find_non_loopback_bridge(tech_pvt->other_session, &other_session, &other_uuid) == SWITCH_STATUS_SUCCESS)) {
-			switch_channel_t *other_channel = switch_core_session_get_channel(other_session);
+			/* B is already bridged to a real channel -- bow out immediately. */
+			switch_mutex_lock(tech_pvt->mutex);
+			if (!switch_test_flag(tech_pvt, TFLAG_BOWOUT) && !switch_test_flag(tech_pvt, TFLAG_BOWOUT_ARMED)) {
+				switch_set_flag_locked(tech_pvt, TFLAG_BOWOUT_ARMED);
+				switch_mutex_unlock(tech_pvt->mutex);
 
-			switch_channel_wait_for_state_timeout(other_channel, CS_EXCHANGE_MEDIA, 5000);
-
-			switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(tech_pvt->session), SWITCH_LOG_INFO, "BOWOUT Replacing loopback channel with real channel: %s\n",
-							  switch_channel_get_name(other_channel));
-
-			if (switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, "loopback::bowout") == SWITCH_STATUS_SUCCESS) {
-				switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Resigning-UUID", switch_channel_get_uuid(channel));
-				switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Resigning-Peer-UUID", switch_channel_get_uuid(tech_pvt->other_channel));
-				switch_event_add_header_string(event, SWITCH_STACK_BOTTOM, "Acquired-UUID", switch_channel_get_uuid(other_channel));
-				switch_event_fire(&event);
+				perform_bowout(tech_pvt, other_session);
+				switch_core_session_rwunlock(other_session);
+				return SWITCH_STATUS_FALSE;
 			}
-
-			if ((cp = switch_channel_get_caller_profile(channel))) {
-				clone = switch_caller_profile_clone(other_session, cp);
-				clone->originator_caller_profile = NULL;
-				clone->originatee_caller_profile = NULL;
-				switch_channel_set_caller_profile(other_channel, clone);
-			}
-
-			switch_channel_set_variable(channel, "loopback_hangup_cause", "bowout");
-			switch_channel_set_variable(tech_pvt->channel, "loopback_bowout_other_uuid", switch_channel_get_uuid(other_channel));
-			switch_channel_caller_extension_masquerade(channel, other_channel, 0);
-			switch_channel_set_state(other_channel, CS_RESET);
-			switch_channel_wait_for_state(other_channel, NULL, CS_RESET);
-			switch_channel_set_state(other_channel, CS_EXECUTE);
+			switch_mutex_unlock(tech_pvt->mutex);
 			switch_core_session_rwunlock(other_session);
-			switch_channel_hangup(channel, loopback_globals.bowout_hangup_cause);
+		} else {
+			switch_mutex_lock(tech_pvt->mutex);
+			if (!switch_test_flag(tech_pvt, TFLAG_BOWOUT) && !switch_test_flag(tech_pvt, TFLAG_BOWOUT_ARMED)) {
+				switch_set_flag_locked(tech_pvt, TFLAG_BOWOUT_ARMED);
+			}
+			switch_mutex_unlock(tech_pvt->mutex);
 		}
 	}
 
@@ -825,6 +924,13 @@ static switch_status_t find_non_loopback_bridge(switch_core_session_t *session, 
 			switch_core_session_rwunlock(sp);
 			sp = NULL;
 		} else {
+			switch_channel_t *spchan = switch_core_session_get_channel(sp);
+
+			if (switch_channel_test_flag(spchan, CF_PICKUP)) {
+				// not a usable bowout target (yet)
+				switch_core_session_rwunlock(sp);
+				sp = NULL;
+			}
 			break;
 		}
 	}
@@ -856,6 +962,34 @@ static switch_status_t channel_write_frame(switch_core_session_t *session, switc
 		switch_core_timer_sync(&tech_pvt->timer);
 		if (tech_pvt->other_tech_pvt) switch_core_timer_sync(&tech_pvt->other_tech_pvt->timer);
 		return SWITCH_STATUS_SUCCESS;
+	}
+
+	{
+		loopback_private_t *outer_tech_pvt = NULL;
+		char *target_uuid = NULL;
+
+		switch_mutex_lock(tech_pvt->mutex);
+		outer_tech_pvt = tech_pvt->other_tech_pvt;
+		switch_mutex_unlock(tech_pvt->mutex);
+
+		if (outer_tech_pvt) {
+			switch_mutex_lock(outer_tech_pvt->mutex);
+			if (outer_tech_pvt->pending_bowout_uuid && switch_test_flag(outer_tech_pvt, TFLAG_BOWOUT_ARMED) &&
+				!switch_test_flag(outer_tech_pvt, TFLAG_BOWOUT)) {
+				target_uuid = outer_tech_pvt->pending_bowout_uuid;
+				outer_tech_pvt->pending_bowout_uuid = NULL;
+				switch_set_flag_locked(outer_tech_pvt, TFLAG_BOWOUT);
+			}
+			switch_mutex_unlock(outer_tech_pvt->mutex);
+
+			if (target_uuid) {
+				switch_core_session_t *target_session;
+
+				if ((target_session = switch_core_session_locate(target_uuid))) {
+					launch_bowout(outer_tech_pvt, target_session);
+				}
+			}
+		}
 	}
 
 	switch_mutex_lock(tech_pvt->mutex);
@@ -1042,6 +1176,31 @@ static switch_status_t channel_receive_message(switch_core_session_t *session, s
 						bridged_channel = switch_core_session_get_channel(bridged_session);
 						switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(bridged_session), SWITCH_LOG_DEBUG, "setting other_leg_true_id to %s\n", switch_channel_get_variable(channel, "other_loopback_from_uuid"));
 						switch_channel_set_variable(bridged_channel, "other_leg_true_id", switch_channel_get_variable(channel, "other_loopback_from_uuid"));
+
+						if (!switch_core_session_check_interface(bridged_session, loopback_endpoint_interface) &&
+							!switch_channel_test_flag(bridged_channel, CF_PICKUP)) {
+							const char *bowout_var = switch_channel_get_variable(channel, "loopback_bowout_on_execute");
+
+							if (bowout_var && switch_true(bowout_var)) {
+								loopback_private_t *outer_tech_pvt = NULL;
+
+								switch_mutex_lock(tech_pvt->mutex);
+								outer_tech_pvt = tech_pvt->other_tech_pvt;
+								switch_mutex_unlock(tech_pvt->mutex);
+
+								if (outer_tech_pvt) {
+									switch_mutex_lock(outer_tech_pvt->mutex);
+									if (switch_test_flag(outer_tech_pvt, TFLAG_BOWOUT_ARMED) &&
+										!switch_test_flag(outer_tech_pvt, TFLAG_BOWOUT) &&
+										!outer_tech_pvt->pending_bowout_uuid) {
+										outer_tech_pvt->pending_bowout_uuid =
+											switch_core_session_strdup(outer_tech_pvt->session, msg->string_arg);
+									}
+									switch_mutex_unlock(outer_tech_pvt->mutex);
+								}
+							}
+						}
+
 						switch_core_session_rwunlock(bridged_session);
 					}
 				}
